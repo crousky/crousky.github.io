@@ -3,6 +3,8 @@ layout: post
 title: Creating a Mock IDbSet using Moq
 description: >
   In this post I will demonstrate creating a mock IDbSet for unit testing with Moq
+redirect_from:
+   - /post/creating-a-mock-idbset-using-moq
 ---
 
 When using Entity Framework for a project I needed to be able to mock the database context and sets in order to do unit testing. I was able to find some ways to mock the Entity Framework context, but I did not find a complete solution. Most examples did not take into account setting the identity column or deleting items. In order to handle these scenarios I created my own MockDbSet.

@@ -3,6 +3,8 @@ layout: post
 title: Timing Health Checks in a Functional Way
 description: >
   In this post I will demonstrate timing health checks for web services using functional programming features in C#
+redirect_from:
+    - /post/timing-health-checks-in-a-functional-way
 ---
 
 While creating a health check page for a service I realized that I was repeating code that timed each health check method. On the health check page there are several methods and each is responsible for checking one thing. The methods all return the same object which is defined by this class:

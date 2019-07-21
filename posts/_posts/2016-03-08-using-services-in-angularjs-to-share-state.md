@@ -3,6 +3,8 @@ layout: post
 title: Using services in AngularJS to share state
 description: >
   This post walks through using an AngularJS service to share state
+redirect_from:
+    - /post/using-services-in-angularjs-to-share-state
 ---
 
 In AngularJS services can be used to share state across multiple views and controllers. This can be useful for several reasons. It can allow the application to go between views without having to wait on web requests to go get the data again from the server.  Another useful benefit is to allow 2 controllers to share the same data. For example if you add an item in an editing controller you may want to see that change reflected in a summary chart at the same time.

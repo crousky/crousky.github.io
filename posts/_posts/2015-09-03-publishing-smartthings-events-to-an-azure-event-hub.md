@@ -3,6 +3,8 @@ layout: post
 title: Publishing SmartThings events to an Azure Event Hub
 description: >
   In this post I will walk through setting up and Event Hub in Azure and publishing events to it using a Smart App that I will write
+redirect_from:
+    - /post/publishing-smartthings-events-to-an-azure-event-hub
 ---
 
 I wanted to be able to publish events from my SmartThings devices to Azure Event Hub. Once I am publishing the events to Event Hub I will be able to save the data or take actions in real time based on the incoming data. In this post I will walk through setting up and Event Hub in Azure and publishing events to it using a Smart App that I will write. 

@@ -3,6 +3,8 @@ layout: post
 title: Creating an Azure SAS token in F#
 description: >
   A walkthrough of creating an Azure SAS token programmatically in F#
+redirect_from:
+   - /post/creating-an-azure-sas-token-in-f
 ---
 
 I wanted to be able to publish events from an IoT application. I could not figure out how to create the SAS token in the language of the IoT application so I decided to just create one that would last for 90 days.
