@@ -1,0 +1,88 @@
+- title: General Information
+  type: map
+  contents:
+    - name: Full Name
+      value: Ben Crouse
+    - name: Location
+      value: Richmond, VA
+    - name: Languages
+      value: English
+
+- title: Professional Summary
+  type: map
+  contents:
+    - name: Overview
+      value: Experienced software developer with expertise in building scalable applications, cloud technologies, and modern development practices. Passionate about clean code, functional programming, and sharing knowledge through technical writing.
+
+- title: Technical Skills
+  type: nested_list
+  contents:
+    - title: Programming Languages
+      items:
+        - C# / .NET
+        - F# (Functional Programming)
+        - JavaScript / TypeScript
+        - AngularJS
+    - title: Cloud & DevOps
+      items:
+        - Microsoft Azure
+        - Azure Event Hubs
+        - Cloud Architecture
+        - IoT Solutions
+    - title: Development Practices
+      items:
+        - Test-Driven Development (TDD)
+        - Mocking & Unit Testing (Moq)
+        - Functional Programming Paradigms
+        - RESTful API Design
+
+- title: Experience
+  type: time_table
+  contents:
+    - title: Software Developer
+      institution: Professional Experience
+      year: 2015 - Present
+      description:
+        - Developed and maintained enterprise applications using .NET technologies
+        - Implemented cloud-based solutions using Microsoft Azure services
+        - Created IoT integrations with SmartThings and Azure Event Hubs
+        - Practiced test-driven development and maintained high code quality standards
+        - Wrote technical blog posts to share knowledge with the developer community
+
+- title: Projects & Contributions
+  type: time_table
+  contents:
+    - title: Azure & IoT Integration
+      year: 2015
+      description: Published SmartThings events to Azure Event Hub, creating programmatic SAS token generation in F#
+    - title: Entity Framework Testing
+      year: 2016
+      description: Developed patterns for mocking IDbSet using Moq for comprehensive unit testing
+    - title: AngularJS State Management
+      year: 2016
+      description: Implemented service-based state sharing patterns in AngularJS applications
+    - title: Functional Programming
+      year: 2015
+      description: Applied functional programming concepts to health check timing and system monitoring
+
+- title: Education
+  type: time_table
+  contents:
+    - title: Software Development
+      institution: Professional Background
+      description: Self-directed learning and continuous professional development in software engineering
+
+- title: Technical Writing
+  type: list
+  contents:
+    - Author of technical blog focusing on .NET, Azure, functional programming, and software development best practices
+    - Topics include Azure SAS tokens, Entity Framework testing, AngularJS patterns, and functional programming techniques
+    - Committed to sharing practical knowledge and real-world solutions with the developer community
+
+- title: Interests
+  type: list
+  contents:
+    - Functional programming paradigms and languages
+    - Cloud architecture and distributed systems
+    - Developer tools and productivity
+    - Test-driven development and code quality
