@@ -12,9 +12,9 @@ ENV LANG=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
     LANGUAGE=en_US
 
-# Install bundler, latest jekyll, and github-pages for older jekyll
+# Install bundler and let it handle jekyll and dependencies via Gemfile
 RUN gem update --system
-RUN gem install bundler jekyll github-pages
+RUN gem install bundler
 
 RUN chown -R "vscode:rvm" "/usr/local/rvm/" \
     && chmod -R g+r+w "/usr/local/rvm/" \

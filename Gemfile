@@ -1,35 +1,38 @@
-source "https://rubygems.org"
+source 'https://rubygems.org'
 
-# Hello! This is where you manage which Jekyll version is used to run.
-# When you want to use a different version, change it below, save the
-# file and run `bundle install`. Run Jekyll with `bundle exec`, like so:
-#
-#     bundle exec jekyll serve
-#
-# This will help ensure the proper Jekyll version is running.
-# Happy Jekylling!
-gem "jekyll"
+gem 'jekyll'
 
-# If you want to use GitHub Pages, remove the "gem "jekyll"" above and
-# uncomment the line below. To upgrade, run `bundle update github-pages`.
-# gem "github-pages", group: :jekyll_plugins
-
-# If you have any plugins, put them here!
+# Core plugins that directly affect site building
 group :jekyll_plugins do
-  gem "jekyll-avatar"
-  gem "jekyll-default-layout"
-  gem "jekyll-feed"
-  gem "jekyll-gist"
-  gem "jekyll-optional-front-matter"
-  gem "jekyll-paginate"
-  gem "jekyll-readme-index"
-  gem "jekyll-redirect-from"
-  gem "jekyll-relative-links"
-  gem "jekyll-remote-theme"
-  gem "jekyll-seo-tag"
-  gem "jekyll-sitemap"
-  gem "jekyll-titles-from-headings"
+    gem 'jekyll-archives-v2'
+    gem 'jekyll-email-protect'
+    gem 'jekyll-feed'
+    gem 'jekyll-get-json'
+    gem 'jekyll-imagemagick'
+    gem 'jekyll-jupyter-notebook'
+    gem 'jekyll-link-attributes'
+    gem 'jekyll-minifier'
+    gem 'jekyll-paginate-v2'
+    gem 'jekyll-regex-replace'
+    gem 'jekyll-scholar'
+    gem 'jekyll-sitemap'
+    gem 'jekyll-tabs'
+    gem 'jekyll-terser', :git => "https://github.com/RobertoJBeltran/jekyll-terser.git"
+    gem 'jekyll-toc'
+    gem 'jekyll-twitter-plugin'
+    gem 'jemoji'
+
+    gem 'classifier-reborn'  # used for content categorization during the build
 end
 
-# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
-gem 'tzinfo-data', platforms: [:mingw, :mswin, :x64_mingw, :jruby]
+# Gems for development or external data fetching (outside :jekyll_plugins)
+group :other_plugins do
+    gem 'css_parser'
+    gem 'feedjira'
+    gem 'httparty'
+    gem 'observer'       # used by jekyll-scholar
+    gem 'ostruct'        # used by jekyll-twitter-plugin
+    # gem 'terser'         # used by jekyll-terser
+    # gem 'unicode_utils' -- should be already installed by jekyll
+    # gem 'webrick' -- should be already installed by jekyll
+end
