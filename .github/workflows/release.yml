@@ -137,6 +137,10 @@ jobs:
           # ensure CNAME present so Pages keeps the custom domain
           echo "${CNAME}" > deploy_repo/CNAME
 
+          # add .nojekyll to prevent GitHub Pages from rebuilding the site
+          # (the site is already built; Pages should serve it as static files)
+          touch deploy_repo/.nojekyll
+
           # commit and push
           cd deploy_repo
           git add -A
