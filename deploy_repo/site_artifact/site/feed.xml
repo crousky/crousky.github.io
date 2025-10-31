@@ -1,0 +1,626 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en"><generator uri="https://jekyllrb.com/" version="4.4.1">Jekyll</generator><link href="https://bencrouse.com/feed.xml" rel="self" type="application/atom+xml" /><link href="https://bencrouse.com/" rel="alternate" type="text/html" hreflang="en" /><updated>2025-10-31T09:47:39+00:00</updated><id>https://bencrouse.com/feed.xml</id><title type="html">blank</title><subtitle>Software developer blog featuring articles on programming, development practices, and technology insights.
+</subtitle><entry><title type="html">Using services in AngularJS to share state</title><link href="https://bencrouse.com/blog/2016/using-services-in-angularjs-to-share-state/" rel="alternate" type="text/html" title="Using services in AngularJS to share state" /><published>2016-03-08T00:00:00+00:00</published><updated>2016-03-08T00:00:00+00:00</updated><id>https://bencrouse.com/blog/2016/using-services-in-angularjs-to-share-state</id><content type="html" xml:base="https://bencrouse.com/blog/2016/using-services-in-angularjs-to-share-state/"><![CDATA[<p>In AngularJS services can be used to share state across multiple views and controllers. This can be useful for several reasons. It can allow the application to go between views without having to wait on web requests to go get the data again from the server.  Another useful benefit is to allow 2 controllers to share the same data. For example if you add an item in an editing controller you may want to see that change reflected in a summary chart at the same time.</p>
+
+<p>As an example imagine an application that allows a user to design a donut with the toppings and dough flavor they select. To maintain the state of the user’s selections an AngularJS service will be used. To identify which donut the user is creating a donutId will be stored in the $state AngularJS service. The application also has a service that provides access the web API for the donut application.</p>
+
+<p>The first thing to do is create the service and inject the dependencies:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">(</span><span class="nf">function </span><span class="p">(</span><span class="nx">DonutApplication</span><span class="p">)</span> <span class="p">{</span>
+    <span class="dl">'</span><span class="s1">use strict</span><span class="dl">'</span><span class="p">;</span>
+    <span class="nx">DonutApplication</span><span class="p">.</span><span class="nx">Services</span><span class="p">.</span><span class="nf">factory</span><span class="p">(</span><span class="dl">'</span><span class="s1">donutStateService</span><span class="dl">'</span><span class="p">,</span> <span class="p">[</span><span class="dl">'</span><span class="s1">$state</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">$q</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">donutApiService</span><span class="dl">'</span><span class="p">,</span>
+        <span class="nf">function </span><span class="p">(</span><span class="nx">$state</span><span class="p">,</span> <span class="nx">$q</span><span class="p">,</span> <span class="nx">donutApiService</span><span class="p">)</span> <span class="p">{</span>
+            
+         <span class="p">}]);</span>
+<span class="p">})(</span><span class="nx">DonutApplication</span><span class="p">);</span>
+</code></pre></div></div>
+
+<p>The service is named “donutStateService” and has dependencies on the $state and $q AngularJS services and the donutApiService.</p>
+
+<p>The first thing to do in the service is define the model that will contain the state:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">vm</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">toppings</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="na">dough</span><span class="p">:</span> <span class="kc">null</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+<p>It is important to always return this model from the service and not the individual contents of it. The reason is that an object must be shared in order for changes to be reflected. If a variable is shared then the controller will only get a copy of the value rather than a reference to it.</p>
+
+<p>The next step is to create variables to represent the API resources needed and the current donutId loaded into the service’s model:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">var</span> <span class="nx">toppingsResource</span> <span class="o">=</span> <span class="nx">donutApiService</span><span class="p">.</span><span class="nf">toppingsResource</span><span class="p">();</span>
+<span class="kd">var</span> <span class="nx">doughResource</span> <span class="o">=</span> <span class="nx">donutApiService</span><span class="p">.</span><span class="nf">doughResource</span><span class="p">();</span>
+
+<span class="kd">var</span> <span class="nx">curDonutId</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</code></pre></div></div>
+
+<p>Add methods to populate the model from the API:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">function</span> <span class="nf">getToppings</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">defer</span> <span class="o">=</span> <span class="nx">$q</span><span class="p">.</span><span class="nf">defer</span><span class="p">();</span>
+    <span class="nx">toppingsResource</span><span class="p">.</span><span class="nf">query</span><span class="p">({</span> <span class="na">donutId</span><span class="p">:</span> <span class="nx">curDonutId</span> <span class="p">},</span> <span class="p">{},</span> 
+        <span class="nf">function </span><span class="p">(</span><span class="nx">data</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">vm</span><span class="p">.</span><span class="nx">toppings</span> <span class="o">=</span> <span class="nx">data</span><span class="p">;</span>
+            <span class="nx">defer</span><span class="p">.</span><span class="nf">resolve</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span>
+        <span class="p">});</span>
+    <span class="k">return</span> <span class="nx">defer</span><span class="p">.</span><span class="nx">promise</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nf">getDough</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">defer</span> <span class="o">=</span> <span class="nx">$q</span><span class="p">.</span><span class="nf">defer</span><span class="p">();</span>
+    <span class="nx">doughResource</span><span class="p">.</span><span class="nf">query</span><span class="p">({</span> <span class="na">donutId</span><span class="p">:</span> <span class="nx">curDonutId</span> <span class="p">},</span> <span class="p">{},</span> 
+        <span class="nf">function </span><span class="p">(</span><span class="nx">data</span><span class="p">){</span>
+            <span class="nx">vm</span><span class="p">.</span><span class="nx">dough</span> <span class="o">=</span> <span class="nx">data</span><span class="p">;</span>
+            <span class="nx">defer</span><span class="p">.</span><span class="nf">resolve</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span>
+        <span class="p">});</span>
+    <span class="k">return</span> <span class="nx">defer</span><span class="p">.</span><span class="nx">promise</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Create a method to check the $state’s donutId against the donutId loaded into the service’s model. If they do not match then the Id should be updated and the model should be refreshed from the API. The items in the model are initialized individually because resetting the vm would cause any consumers’ references to be broken.</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">function</span> <span class="nf">resetIfDonutChanged</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">defer</span> <span class="o">=</span> <span class="nx">$q</span><span class="p">.</span><span class="nf">defer</span><span class="p">();</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">curDonutId</span> <span class="o">!==</span> <span class="nx">$state</span><span class="p">.</span><span class="nx">params</span><span class="p">[</span><span class="dl">"</span><span class="s2">donutId</span><span class="dl">"</span><span class="p">])</span> <span class="p">{</span>
+        <span class="nx">curDonutId</span> <span class="o">=</span> <span class="nx">$state</span><span class="p">.</span><span class="nx">params</span><span class="p">[</span><span class="dl">"</span><span class="s2">donutId</span><span class="dl">"</span><span class="p">];</span>
+        <span class="nx">vm</span><span class="p">.</span><span class="nx">toppings</span> <span class="o">=</span> <span class="p">[];</span>
+        <span class="nx">vm</span><span class="p">.</span><span class="nx">dough</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
+        
+        <span class="nx">$q</span><span class="p">.</span><span class="nf">all</span><span class="p">(</span>
+            <span class="nf">getToppings</span><span class="p">(),</span>
+            <span class="nf">getDough</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="p">.</span><span class="nf">then</span><span class="p">(</span><span class="nf">function </span><span class="p">()</span> <span class="p">{</span>
+           <span class="nx">defer</span><span class="p">.</span><span class="nf">resolve</span><span class="p">();</span> 
+        <span class="p">});</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="nx">defer</span><span class="p">.</span><span class="nf">resolve</span><span class="p">();</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nx">defer</span><span class="p">.</span><span class="nx">promise</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The caller of the donutStateService should get a promise back to allow the state service to update the model from the API if necessary. In order to simplify this a helper function is useful:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">function</span> <span class="nf">returnPromisedValues</span><span class="p">(</span><span class="nx">values</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">defer</span> <span class="o">=</span> <span class="nx">$q</span><span class="p">.</span><span class="nf">defer</span><span class="p">();</span>
+    <span class="nf">resetIfDonutChanged</span><span class="p">().</span><span class="nf">then</span><span class="p">(</span><span class="nf">function </span><span class="p">()</span> <span class="p">{</span>
+        <span class="nx">defer</span><span class="p">.</span><span class="nf">resolve</span><span class="p">(</span><span class="nx">values</span><span class="p">);</span>
+    <span class="p">});</span>
+    <span class="k">return</span> <span class="nx">defer</span><span class="p">.</span><span class="nx">promise</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Finally create the return object of the donutStateService and return the model wrapped in a promise:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">return</span> <span class="p">{</span>
+    <span class="na">getDonutInfo</span><span class="p">:</span> <span class="nf">function </span><span class="p">()</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nf">returnPromisedValues</span><span class="p">(</span><span class="nx">vm</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">};</span>
+</code></pre></div></div>
+
+<p>To use the donutStateService in a controller you could set a variable on the scope to the object returned by the getDonutInfo method:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">$scope</span><span class="p">.</span><span class="nx">vm</span><span class="p">.</span><span class="nx">donutDetails</span> <span class="o">=</span> <span class="nx">donutStateService</span><span class="p">.</span><span class="nf">getDonutInfo</span><span class="p">();</span>
+</code></pre></div></div>
+
+<p>By accessing the state service in this way across multiple controllers changes made in one controller will be reflected in the other. This is a simple, but useful pattern to speed up and simplify an AngularJS application that needs to share state across multiple views.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[This post walks through using an AngularJS service to share state]]></summary></entry><entry><title type="html">Creating a Mock IDbSet using Moq</title><link href="https://bencrouse.com/blog/2016/creating-a-mock-idbset-using-moq/" rel="alternate" type="text/html" title="Creating a Mock IDbSet using Moq" /><published>2016-02-10T00:00:00+00:00</published><updated>2016-02-10T00:00:00+00:00</updated><id>https://bencrouse.com/blog/2016/creating-a-mock-idbset-using-moq</id><content type="html" xml:base="https://bencrouse.com/blog/2016/creating-a-mock-idbset-using-moq/"><![CDATA[<p>When using Entity Framework for a project I needed to be able to mock the database context and sets in order to do unit testing. I was able to find some ways to mock the Entity Framework context, but I did not find a complete solution. Most examples did not take into account setting the identity column or deleting items. In order to handle these scenarios I created my own MockDbSet.</p>
+
+<p>I will demonstrate how this works with a sample project for creating and editing reminders.</p>
+
+<p>The context is represented by a simple interface:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">public</span> <span class="k">interface</span> <span class="nc">IRemindersContext</span>
+<span class="p">{</span>
+    <span class="n">IDbSet</span><span class="p">&lt;</span><span class="n">Reminder</span><span class="p">&gt;</span> <span class="n">Reminders</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+
+    <span class="n">Task</span><span class="p">&lt;</span><span class="kt">int</span><span class="p">&gt;</span> <span class="nf">SaveChangesAsync</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The business logic is in a manager class that takes the context interface as a parameter to enable dependency injection and unit testing:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">public</span> <span class="k">class</span> <span class="nc">ReminderManager</span> <span class="p">:</span> <span class="n">IReminderManager</span>
+<span class="p">{</span>
+    <span class="n">IRemindersContext</span> <span class="n">_context</span><span class="p">;</span>
+    <span class="k">public</span> <span class="nf">ReminderManager</span><span class="p">(</span><span class="n">IRemindersContext</span> <span class="n">context</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="n">_context</span> <span class="p">=</span> <span class="n">context</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">public</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Reminder</span><span class="p">&gt;</span> <span class="nf">Get</span><span class="p">()</span>
+    <span class="p">{</span>
+        <span class="k">return</span> <span class="n">_context</span><span class="p">.</span><span class="n">Reminders</span><span class="p">.</span><span class="nf">ToList</span><span class="p">();</span>
+    <span class="p">}</span>
+
+    <span class="k">public</span> <span class="n">Reminder</span> <span class="nf">Get</span><span class="p">(</span><span class="kt">int</span> <span class="n">reminderId</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="k">return</span> <span class="n">_context</span><span class="p">.</span><span class="n">Reminders</span><span class="p">.</span><span class="nf">Find</span><span class="p">(</span><span class="n">reminderId</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="n">Reminder</span><span class="p">&gt;</span> <span class="nf">Add</span><span class="p">(</span><span class="kt">string</span> <span class="n">description</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="kt">var</span> <span class="n">reminder</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Reminder</span> <span class="p">{</span> <span class="n">Description</span> <span class="p">=</span> <span class="n">description</span> <span class="p">};</span>
+
+        <span class="n">_context</span><span class="p">.</span><span class="n">Reminders</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="n">reminder</span><span class="p">);</span>
+
+        <span class="k">await</span> <span class="n">_context</span><span class="p">.</span><span class="nf">SaveChangesAsync</span><span class="p">();</span>
+
+        <span class="k">return</span> <span class="n">reminder</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">public</span> <span class="k">async</span> <span class="n">Task</span><span class="p">&lt;</span><span class="kt">bool</span><span class="p">&gt;</span> <span class="nf">Delete</span><span class="p">(</span><span class="kt">int</span> <span class="n">reminderId</span><span class="p">)</span>
+    <span class="p">{</span>
+        <span class="kt">var</span> <span class="n">reminder</span> <span class="p">=</span> <span class="n">_context</span><span class="p">.</span><span class="n">Reminders</span><span class="p">.</span><span class="nf">Find</span><span class="p">(</span><span class="n">reminderId</span><span class="p">);</span>
+
+        <span class="n">_context</span><span class="p">.</span><span class="n">Reminders</span><span class="p">.</span><span class="nf">Remove</span><span class="p">(</span><span class="n">reminder</span><span class="p">);</span>
+
+        <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="k">await</span> <span class="n">_context</span><span class="p">.</span><span class="nf">SaveChangesAsync</span><span class="p">();</span>
+
+        <span class="k">return</span> <span class="n">result</span> <span class="p">&gt;</span> <span class="m">0</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>In order to do unit testing of the business logic I need to be able to mock the IDbSet. This is where my mock class comes in. I am using Moq to do create the mocks. The mock IDbSet will be created by a static method on a static class. The method will accept a generic list containing the data that should be returned by the mock IDbSet. The class and method look like this:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">MockDbSet</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="k">static</span> <span class="n">Mock</span><span class="p">&lt;</span><span class="n">IDbSet</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;</span> <span class="n">CreateMockDbSet</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;(</span><span class="n">List</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="n">data</span><span class="p">)</span> <span class="k">where</span> <span class="n">T</span> <span class="p">:</span> <span class="k">class</span>
+    <span class="err">{</span>
+        <span class="err">...</span>
+    <span class="err">}</span>
+<span class="err">}</span>
+</code></pre></div></div>
+
+<p>The first thing I need to do is to set up the mock to behave like an IQueryable<T>. To do this I will create the mock object mock some of the IQueryable methods.</T></p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">mock</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Mock</span><span class="p">&lt;</span><span class="n">IDbSet</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;();</span>
+<span class="kt">var</span> <span class="n">queryData</span> <span class="p">=</span> <span class="n">data</span><span class="p">.</span><span class="nf">AsQueryable</span><span class="p">();</span>
+<span class="n">mock</span><span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">IQueryable</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;().</span><span class="nf">Setup</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">Provider</span><span class="p">).</span><span class="nf">Returns</span><span class="p">(</span><span class="n">queryData</span><span class="p">.</span><span class="n">Provider</span><span class="p">);</span>
+<span class="n">mock</span><span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">IQueryable</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;().</span><span class="nf">Setup</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">Expression</span><span class="p">).</span><span class="nf">Returns</span><span class="p">(</span><span class="n">queryData</span><span class="p">.</span><span class="n">Expression</span><span class="p">);</span>
+<span class="n">mock</span><span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">IQueryable</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;().</span><span class="nf">Setup</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">ElementType</span><span class="p">).</span><span class="nf">Returns</span><span class="p">(</span><span class="n">queryData</span><span class="p">.</span><span class="n">ElementType</span><span class="p">);</span>
+<span class="n">mock</span><span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">IQueryable</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;().</span><span class="nf">Setup</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="nf">GetEnumerator</span><span class="p">()).</span><span class="nf">Returns</span><span class="p">(</span><span class="n">queryData</span><span class="p">.</span><span class="nf">GetEnumerator</span><span class="p">());</span>
+</code></pre></div></div>
+
+<p>This is all that is needed in order to create a mock that will allow you to select items from it. I want to have add and remove functionality so I need to add those methods to my mock. First, I will find the primary key by using the class name with the suffix “Id”.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Type</span> <span class="n">type</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">T</span><span class="p">);</span>
+<span class="kt">string</span> <span class="n">colName</span> <span class="p">=</span> <span class="n">type</span><span class="p">.</span><span class="n">Name</span> <span class="p">+</span> <span class="s">"Id"</span><span class="p">;</span>
+<span class="kt">var</span> <span class="n">pk</span> <span class="p">=</span> <span class="n">type</span><span class="p">.</span><span class="nf">GetProperty</span><span class="p">(</span><span class="n">colName</span><span class="p">);</span>
+<span class="k">if</span> <span class="p">(</span><span class="n">pk</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">colName</span> <span class="p">=</span> <span class="n">type</span><span class="p">.</span><span class="n">Name</span> <span class="p">+</span> <span class="s">"ID"</span><span class="p">;</span>
+    <span class="n">pk</span> <span class="p">=</span> <span class="n">type</span><span class="p">.</span><span class="nf">GetProperty</span><span class="p">(</span><span class="n">colName</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Note: Before using the pk you must validate that it is not null.</p>
+
+<p>Now that I have the primary key and I create a method to add new items to the mock IDbSet and return them with the new ID. My implementation supports integer and Guid primary keys.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mock</span><span class="p">.</span><span class="nf">Setup</span><span class="p">(</span><span class="n">x</span> <span class="p">=&gt;</span> <span class="n">x</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="n">It</span><span class="p">.</span><span class="n">IsAny</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;())).</span><span class="nf">Returns</span><span class="p">((</span><span class="n">T</span> <span class="n">x</span><span class="p">)</span> <span class="p">=&gt;</span>
+<span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">pk</span><span class="p">.</span><span class="n">PropertyType</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="kt">int</span><span class="p">)</span>
+        <span class="p">||</span> <span class="n">pk</span><span class="p">.</span><span class="n">PropertyType</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">Int32</span><span class="p">))</span>
+    <span class="p">{</span>
+        <span class="kt">var</span> <span class="n">max</span> <span class="p">=</span> <span class="n">data</span><span class="p">.</span><span class="nf">Select</span><span class="p">(</span><span class="n">d</span> <span class="p">=&gt;</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">pk</span><span class="p">.</span><span class="nf">GetValue</span><span class="p">(</span><span class="n">d</span><span class="p">)).</span><span class="nf">Max</span><span class="p">();</span>
+        <span class="n">pk</span><span class="p">.</span><span class="nf">SetValue</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">max</span> <span class="p">+</span> <span class="m">1</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">pk</span><span class="p">.</span><span class="n">PropertyType</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">Guid</span><span class="p">))</span>
+    <span class="p">{</span>
+        <span class="n">pk</span><span class="p">.</span><span class="nf">SetValue</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">Guid</span><span class="p">.</span><span class="nf">NewGuid</span><span class="p">());</span>
+    <span class="p">}</span>
+    <span class="n">data</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="n">x</span><span class="p">);</span>
+    <span class="k">return</span> <span class="n">x</span><span class="p">;</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>The code for remove is much simpler:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mock</span><span class="p">.</span><span class="nf">Setup</span><span class="p">(</span><span class="n">x</span> <span class="p">=&gt;</span> <span class="n">x</span><span class="p">.</span><span class="nf">Remove</span><span class="p">(</span><span class="n">It</span><span class="p">.</span><span class="n">IsAny</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;())).</span><span class="nf">Returns</span><span class="p">((</span><span class="n">T</span> <span class="n">x</span><span class="p">)</span> <span class="p">=&gt;</span>
+<span class="p">{</span>
+    <span class="n">data</span><span class="p">.</span><span class="nf">Remove</span><span class="p">(</span><span class="n">x</span><span class="p">);</span>
+    <span class="k">return</span> <span class="n">x</span><span class="p">;</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>I also need to support Find for my application. This turns out to be the trickiest method to implement. The difficult part is determining the primary key column and using it in a LINQ statement. I already know the primary key column so I will reuse that variable to write the query to find the item. To do this I create an expression tree to build the lambda expression that matches the given value to the primary key.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">mock</span><span class="p">.</span><span class="nf">Setup</span><span class="p">(</span><span class="n">x</span> <span class="p">=&gt;</span> <span class="n">x</span><span class="p">.</span><span class="nf">Find</span><span class="p">(</span><span class="n">It</span><span class="p">.</span><span class="n">IsAny</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">[</span><span class="k">]&gt;</span><span class="p">())).</span><span class="nf">Returns</span><span class="p">((</span><span class="kt">object</span><span class="p">[]</span> <span class="n">id</span><span class="p">)</span> <span class="p">=&gt;</span>
+<span class="p">{</span>
+    <span class="kt">var</span> <span class="n">param</span> <span class="p">=</span> <span class="n">Expression</span><span class="p">.</span><span class="nf">Parameter</span><span class="p">(</span><span class="n">type</span><span class="p">,</span> <span class="s">"t"</span><span class="p">);</span>
+    <span class="kt">var</span> <span class="n">col</span> <span class="p">=</span> <span class="n">Expression</span><span class="p">.</span><span class="nf">Property</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="n">colName</span><span class="p">);</span>
+    <span class="kt">var</span> <span class="n">body</span> <span class="p">=</span> <span class="n">Expression</span><span class="p">.</span><span class="nf">Equal</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">Expression</span><span class="p">.</span><span class="nf">Constant</span><span class="p">(</span><span class="n">id</span><span class="p">[</span><span class="m">0</span><span class="p">]));</span>
+    <span class="kt">var</span> <span class="n">lambda</span> <span class="p">=</span> <span class="n">Expression</span><span class="p">.</span><span class="n">Lambda</span><span class="p">&lt;</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">T</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;&gt;(</span><span class="n">body</span><span class="p">,</span> <span class="n">param</span><span class="p">);</span>
+    <span class="k">return</span> <span class="n">queryData</span><span class="p">.</span><span class="nf">FirstOrDefault</span><span class="p">(</span><span class="n">lambda</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<p>Here is the complete code for the MockDbSet:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">MockDbSet</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="k">static</span> <span class="n">Mock</span><span class="p">&lt;</span><span class="n">IDbSet</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;</span> <span class="n">CreateMockDbSet</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;(</span><span class="n">List</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;</span> <span class="n">data</span><span class="p">)</span> <span class="k">where</span> <span class="n">T</span> <span class="p">:</span> <span class="k">class</span>
+    <span class="err">{</span>
+        <span class="nc">var</span> <span class="n">mock</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Mock</span><span class="p">&lt;</span><span class="n">IDbSet</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;();</span>
+        <span class="kt">var</span> <span class="n">queryData</span> <span class="p">=</span> <span class="n">data</span><span class="p">.</span><span class="nf">AsQueryable</span><span class="p">();</span>
+        <span class="n">mock</span><span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">IQueryable</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;().</span><span class="nf">Setup</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">Provider</span><span class="p">).</span><span class="nf">Returns</span><span class="p">(</span><span class="n">queryData</span><span class="p">.</span><span class="n">Provider</span><span class="p">);</span>
+        <span class="n">mock</span><span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">IQueryable</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;().</span><span class="nf">Setup</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">Expression</span><span class="p">).</span><span class="nf">Returns</span><span class="p">(</span><span class="n">queryData</span><span class="p">.</span><span class="n">Expression</span><span class="p">);</span>
+        <span class="n">mock</span><span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">IQueryable</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;().</span><span class="nf">Setup</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="n">ElementType</span><span class="p">).</span><span class="nf">Returns</span><span class="p">(</span><span class="n">queryData</span><span class="p">.</span><span class="n">ElementType</span><span class="p">);</span>
+        <span class="n">mock</span><span class="p">.</span><span class="n">As</span><span class="p">&lt;</span><span class="n">IQueryable</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;&gt;().</span><span class="nf">Setup</span><span class="p">(</span><span class="n">m</span> <span class="p">=&gt;</span> <span class="n">m</span><span class="p">.</span><span class="nf">GetEnumerator</span><span class="p">()).</span><span class="nf">Returns</span><span class="p">(</span><span class="n">queryData</span><span class="p">.</span><span class="nf">GetEnumerator</span><span class="p">());</span>
+
+        <span class="n">Type</span> <span class="n">type</span> <span class="p">=</span> <span class="k">typeof</span><span class="p">(</span><span class="n">T</span><span class="p">);</span>
+        <span class="kt">string</span> <span class="n">colName</span> <span class="p">=</span> <span class="n">type</span><span class="p">.</span><span class="n">Name</span> <span class="p">+</span> <span class="s">"Id"</span><span class="p">;</span>
+        <span class="kt">var</span> <span class="n">pk</span> <span class="p">=</span> <span class="n">type</span><span class="p">.</span><span class="nf">GetProperty</span><span class="p">(</span><span class="n">colName</span><span class="p">);</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">pk</span> <span class="p">==</span> <span class="k">null</span><span class="p">)</span>
+        <span class="p">{</span>
+            <span class="n">colName</span> <span class="p">=</span> <span class="n">type</span><span class="p">.</span><span class="n">Name</span> <span class="p">+</span> <span class="s">"ID"</span><span class="p">;</span>
+            <span class="n">pk</span> <span class="p">=</span> <span class="n">type</span><span class="p">.</span><span class="nf">GetProperty</span><span class="p">(</span><span class="n">colName</span><span class="p">);</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">pk</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span>
+        <span class="p">{</span>
+            <span class="n">mock</span><span class="p">.</span><span class="nf">Setup</span><span class="p">(</span><span class="n">x</span> <span class="p">=&gt;</span> <span class="n">x</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="n">It</span><span class="p">.</span><span class="n">IsAny</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;())).</span><span class="nf">Returns</span><span class="p">((</span><span class="n">T</span> <span class="n">x</span><span class="p">)</span> <span class="p">=&gt;</span>
+            <span class="p">{</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">pk</span><span class="p">.</span><span class="n">PropertyType</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="kt">int</span><span class="p">)</span>
+                    <span class="p">||</span> <span class="n">pk</span><span class="p">.</span><span class="n">PropertyType</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">Int32</span><span class="p">))</span>
+                <span class="p">{</span>
+                    <span class="kt">var</span> <span class="n">max</span> <span class="p">=</span> <span class="n">data</span><span class="p">.</span><span class="nf">Select</span><span class="p">(</span><span class="n">d</span> <span class="p">=&gt;</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">pk</span><span class="p">.</span><span class="nf">GetValue</span><span class="p">(</span><span class="n">d</span><span class="p">)).</span><span class="nf">Max</span><span class="p">();</span>
+                    <span class="n">pk</span><span class="p">.</span><span class="nf">SetValue</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">max</span> <span class="p">+</span> <span class="m">1</span><span class="p">);</span>
+                <span class="p">}</span>
+                <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="n">pk</span><span class="p">.</span><span class="n">PropertyType</span> <span class="p">==</span> <span class="k">typeof</span><span class="p">(</span><span class="n">Guid</span><span class="p">))</span>
+                <span class="p">{</span>
+                    <span class="n">pk</span><span class="p">.</span><span class="nf">SetValue</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">Guid</span><span class="p">.</span><span class="nf">NewGuid</span><span class="p">());</span>
+                <span class="p">}</span>
+                <span class="n">data</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="n">x</span><span class="p">);</span>
+                <span class="k">return</span> <span class="n">x</span><span class="p">;</span>
+            <span class="p">});</span>
+            <span class="n">mock</span><span class="p">.</span><span class="nf">Setup</span><span class="p">(</span><span class="n">x</span> <span class="p">=&gt;</span> <span class="n">x</span><span class="p">.</span><span class="nf">Remove</span><span class="p">(</span><span class="n">It</span><span class="p">.</span><span class="n">IsAny</span><span class="p">&lt;</span><span class="n">T</span><span class="p">&gt;())).</span><span class="nf">Returns</span><span class="p">((</span><span class="n">T</span> <span class="n">x</span><span class="p">)</span> <span class="p">=&gt;</span>
+            <span class="p">{</span>
+                <span class="n">data</span><span class="p">.</span><span class="nf">Remove</span><span class="p">(</span><span class="n">x</span><span class="p">);</span>
+                <span class="k">return</span> <span class="n">x</span><span class="p">;</span>
+            <span class="p">});</span>
+            <span class="n">mock</span><span class="p">.</span><span class="nf">Setup</span><span class="p">(</span><span class="n">x</span> <span class="p">=&gt;</span> <span class="n">x</span><span class="p">.</span><span class="nf">Find</span><span class="p">(</span><span class="n">It</span><span class="p">.</span><span class="n">IsAny</span><span class="p">&lt;</span><span class="kt">object</span><span class="p">[</span><span class="k">]&gt;</span><span class="p">())).</span><span class="nf">Returns</span><span class="p">((</span><span class="kt">object</span><span class="p">[]</span> <span class="n">id</span><span class="p">)</span> <span class="p">=&gt;</span>
+            <span class="p">{</span>
+                <span class="kt">var</span> <span class="n">param</span> <span class="p">=</span> <span class="n">Expression</span><span class="p">.</span><span class="nf">Parameter</span><span class="p">(</span><span class="n">type</span><span class="p">,</span> <span class="s">"t"</span><span class="p">);</span>
+                <span class="kt">var</span> <span class="n">col</span> <span class="p">=</span> <span class="n">Expression</span><span class="p">.</span><span class="nf">Property</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="n">colName</span><span class="p">);</span>
+                <span class="kt">var</span> <span class="n">body</span> <span class="p">=</span> <span class="n">Expression</span><span class="p">.</span><span class="nf">Equal</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">Expression</span><span class="p">.</span><span class="nf">Constant</span><span class="p">(</span><span class="n">id</span><span class="p">[</span><span class="m">0</span><span class="p">]));</span>
+                <span class="kt">var</span> <span class="n">lambda</span> <span class="p">=</span> <span class="n">Expression</span><span class="p">.</span><span class="n">Lambda</span><span class="p">&lt;</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">T</span><span class="p">,</span> <span class="kt">bool</span><span class="p">&gt;&gt;(</span><span class="n">body</span><span class="p">,</span> <span class="n">param</span><span class="p">);</span>
+                <span class="k">return</span> <span class="n">queryData</span><span class="p">.</span><span class="nf">FirstOrDefault</span><span class="p">(</span><span class="n">lambda</span><span class="p">);</span>
+            <span class="p">});</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">mock</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>In order to use this in unit tests I will create a mock context class that I can create an instance of for each unit test.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">public</span> <span class="k">static</span> <span class="k">class</span> <span class="nc">RemindersContextMock</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="k">static</span> <span class="n">Mock</span><span class="p">&lt;</span><span class="n">IRemindersContext</span><span class="p">&gt;</span> <span class="nf">GetMockContext</span><span class="p">()</span>
+    <span class="p">{</span>
+        <span class="kt">var</span> <span class="n">context</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Mock</span><span class="p">&lt;</span><span class="n">IRemindersContext</span><span class="p">&gt;();</span>
+
+        <span class="n">context</span><span class="p">.</span><span class="nf">Setup</span><span class="p">(</span><span class="n">c</span> <span class="p">=&gt;</span> <span class="n">c</span><span class="p">.</span><span class="n">Reminders</span><span class="p">).</span><span class="nf">Returns</span><span class="p">(</span><span class="nf">GetReminders</span><span class="p">().</span><span class="n">Object</span><span class="p">);</span>
+
+        <span class="k">return</span> <span class="n">context</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">public</span> <span class="k">static</span> <span class="n">Mock</span><span class="p">&lt;</span><span class="n">IDbSet</span><span class="p">&lt;</span><span class="n">Reminder</span><span class="p">&gt;&gt;</span> <span class="nf">GetReminders</span><span class="p">()</span>
+    <span class="p">{</span>
+        <span class="kt">var</span> <span class="n">reminders</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">Reminder</span><span class="p">&gt;</span>
+        <span class="p">{</span>
+            <span class="k">new</span> <span class="n">Reminder</span> <span class="p">{</span> <span class="n">ReminderId</span> <span class="p">=</span> <span class="m">1</span><span class="p">,</span> <span class="n">Description</span> <span class="p">=</span> <span class="s">"Do work"</span> <span class="p">},</span>
+            <span class="k">new</span> <span class="n">Reminder</span> <span class="p">{</span> <span class="n">ReminderId</span> <span class="p">=</span> <span class="m">2</span><span class="p">,</span> <span class="n">Description</span> <span class="p">=</span> <span class="s">"Read a book"</span> <span class="p">},</span>
+            <span class="k">new</span> <span class="n">Reminder</span> <span class="p">{</span> <span class="n">ReminderId</span> <span class="p">=</span> <span class="m">3</span><span class="p">,</span> <span class="n">Description</span> <span class="p">=</span> <span class="s">"Make dinner"</span> <span class="p">}</span>
+        <span class="p">};</span>
+
+        <span class="k">return</span> <span class="n">MockDbSet</span><span class="p">.</span><span class="n">CreateMockDbSet</span><span class="p">&lt;</span><span class="n">Reminder</span><span class="p">&gt;(</span><span class="n">reminders</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>I will create a setup method for my unit tests where I create the instance of the manager class to test and pass in my mocked context.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">ReminderManager</span> <span class="n">_manager</span><span class="p">;</span>
+<span class="n">Mock</span><span class="p">&lt;</span><span class="n">IRemindersContext</span><span class="p">&gt;</span> <span class="n">_context</span><span class="p">;</span>
+
+<span class="p">[</span><span class="n">SetUp</span><span class="p">]</span>
+<span class="k">public</span> <span class="k">void</span> <span class="nf">SetUp</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="n">_context</span> <span class="p">=</span> <span class="n">RemindersContextMock</span><span class="p">.</span><span class="nf">GetMockContext</span><span class="p">();</span>
+
+    <span class="n">_manager</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">ReminderManager</span><span class="p">(</span><span class="n">_context</span><span class="p">.</span><span class="n">Object</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Now I can write tests for the methods in the manager class. First I will verify that I can get the list of reminders from the context.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[</span><span class="n">Test</span><span class="p">]</span>
+<span class="k">public</span> <span class="k">void</span> <span class="nf">CanGetReminders</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="kt">var</span> <span class="n">reminders</span> <span class="p">=</span> <span class="n">_manager</span><span class="p">.</span><span class="nf">Get</span><span class="p">();</span>
+    <span class="n">Assert</span><span class="p">.</span><span class="nf">AreEqual</span><span class="p">(</span><span class="m">3</span><span class="p">,</span> <span class="n">reminders</span><span class="p">.</span><span class="nf">Count</span><span class="p">());</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Next I will verify that when I add a reminder it gets a valid ID.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[</span><span class="n">Test</span><span class="p">]</span>
+<span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="nf">CanAddReminder</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="kt">var</span> <span class="n">reminder</span> <span class="p">=</span> <span class="k">await</span> <span class="n">_manager</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="s">"Walk the dog"</span><span class="p">);</span>
+    <span class="n">Assert</span><span class="p">.</span><span class="nf">AreEqual</span><span class="p">(</span><span class="m">4</span><span class="p">,</span> <span class="n">reminder</span><span class="p">.</span><span class="n">ReminderId</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Finally I will test the remove method to ensure that it is removing the reminder from the context.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">[</span><span class="n">Test</span><span class="p">]</span>
+<span class="k">public</span> <span class="k">async</span> <span class="n">Task</span> <span class="nf">CanDeleteReminder</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="kt">var</span> <span class="n">reminder</span> <span class="p">=</span> <span class="n">_manager</span><span class="p">.</span><span class="nf">Get</span><span class="p">().</span><span class="nf">FirstOrDefault</span><span class="p">(</span><span class="n">r</span> <span class="p">=&gt;</span> <span class="n">r</span><span class="p">.</span><span class="n">Description</span> <span class="p">==</span> <span class="s">"Read a book"</span><span class="p">);</span>
+    <span class="k">await</span> <span class="n">_manager</span><span class="p">.</span><span class="nf">Delete</span><span class="p">(</span><span class="n">reminder</span><span class="p">.</span><span class="n">ReminderId</span><span class="p">);</span>
+    <span class="kt">var</span> <span class="n">reminder2</span> <span class="p">=</span> <span class="n">_manager</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="n">reminder</span><span class="p">.</span><span class="n">ReminderId</span><span class="p">);</span>
+    <span class="n">Assert</span><span class="p">.</span><span class="nf">IsNull</span><span class="p">(</span><span class="n">reminder2</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>I hope this helps you if you need to create a mock IDbSet. It should be clear now how to add to the mock DbSet’s methods if you need additional functionality.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[In this post I will demonstrate creating a mock IDbSet for unit testing with Moq]]></summary></entry><entry><title type="html">Timing Health Checks in a Functional Way</title><link href="https://bencrouse.com/blog/2015/timing-health-checks-in-a-functional-way/" rel="alternate" type="text/html" title="Timing Health Checks in a Functional Way" /><published>2015-10-16T00:00:00+00:00</published><updated>2015-10-16T00:00:00+00:00</updated><id>https://bencrouse.com/blog/2015/timing-health-checks-in-a-functional-way</id><content type="html" xml:base="https://bencrouse.com/blog/2015/timing-health-checks-in-a-functional-way/"><![CDATA[<p>While creating a health check page for a service I realized that I was repeating code that timed each health check method. On the health check page there are several methods and each is responsible for checking one thing. The methods all return the same object which is defined by this class:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">public</span> <span class="k">class</span> <span class="nc">HealthStatus</span>
+<span class="p">{</span>
+    <span class="k">public</span> <span class="kt">bool</span> <span class="n">Status</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+    <span class="k">public</span> <span class="kt">long</span> <span class="n">RequestTimeMs</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+    <span class="k">public</span> <span class="kt">string</span> <span class="n">ErrorMessage</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="k">set</span><span class="p">;</span> <span class="p">}</span>
+    <span class="c1">//other properties</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>I decided to refactor the code so that I was not repeating the same code over and over. The style of programming I have been learning from functional programming gave me an idea of how to refactor the code in a much simpler way than I would have without using a functional approach. I created this method which takes a method, starts a timer, runs the method, then puts the time it took to run in the return value.</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">public</span> <span class="n">HealthStatus</span> <span class="nf">TimedHealthCheck</span><span class="p">(</span><span class="n">Func</span><span class="p">&lt;</span><span class="n">HealthStatus</span><span class="p">&gt;</span> <span class="n">f</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">var</span> <span class="n">sw</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">Stopwatch</span><span class="p">();</span>
+    <span class="n">sw</span><span class="p">.</span><span class="nf">Start</span><span class="p">();</span>
+    
+    <span class="kt">var</span> <span class="n">result</span> <span class="p">=</span> <span class="nf">f</span><span class="p">();</span>
+    
+    <span class="n">result</span><span class="p">.</span><span class="n">RequestTimeMs</span> <span class="p">=</span> <span class="n">sw</span><span class="p">.</span><span class="n">ElapsedMilliseconds</span><span class="p">;</span>
+    
+    <span class="k">return</span> <span class="n">result</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Now I can just wrap the work inside my health check methods with this and it will do the timing for me. Here is an example:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">public</span> <span class="n">HealthStatus</span> <span class="nf">CanParseString</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="k">return</span> <span class="nf">TimedHealthCheck</span><span class="p">(()</span> <span class="p">=&gt;</span>
+    <span class="p">{</span>
+        <span class="kt">var</span> <span class="n">health</span> <span class="p">=</span> <span class="k">new</span> <span class="n">HealthStatus</span>
+        <span class="p">{</span>
+            <span class="n">Status</span> <span class="p">=</span> <span class="k">false</span>
+        <span class="p">};</span>
+
+        <span class="k">try</span>
+        <span class="p">{</span>
+            <span class="kt">var</span> <span class="n">parseInt</span> <span class="p">=</span> <span class="m">0</span><span class="p">;</span>
+            <span class="n">health</span><span class="p">.</span><span class="n">Status</span> <span class="p">=</span> <span class="kt">int</span><span class="p">.</span><span class="nf">TryParse</span><span class="p">(</span><span class="s">"123"</span><span class="p">,</span> <span class="k">out</span> <span class="n">parseInt</span><span class="p">);</span>
+        <span class="p">}</span>
+        <span class="k">catch</span> <span class="p">(</span><span class="n">Exception</span> <span class="n">ex</span><span class="p">)</span>
+        <span class="p">{</span>
+            <span class="n">health</span><span class="p">.</span><span class="n">ErrorMessage</span> <span class="p">=</span> <span class="n">ex</span><span class="p">.</span><span class="n">Message</span><span class="p">;</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">health</span><span class="p">;</span>
+    <span class="p">});</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>To run the health checks I create a list and add each health check:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">var</span> <span class="n">healthChecks</span> <span class="p">=</span> <span class="k">new</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">HealthStatus</span><span class="p">&gt;();</span>
+    <span class="n">healthChecks</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="nf">CanParseString</span><span class="p">());</span>
+</code></pre></div></div>]]></content><author><name></name></author><summary type="html"><![CDATA[In this post I will demonstrate timing health checks for web services using functional programming features in C#]]></summary></entry><entry><title type="html">Publishing SmartThings events to an Azure Event Hub</title><link href="https://bencrouse.com/blog/2015/publishing-smartthings-events-to-an-azure-event-hub/" rel="alternate" type="text/html" title="Publishing SmartThings events to an Azure Event Hub" /><published>2015-09-03T00:00:00+00:00</published><updated>2015-09-03T00:00:00+00:00</updated><id>https://bencrouse.com/blog/2015/publishing-smartthings-events-to-an-azure-event-hub</id><content type="html" xml:base="https://bencrouse.com/blog/2015/publishing-smartthings-events-to-an-azure-event-hub/"><![CDATA[<p>I wanted to be able to publish events from my SmartThings devices to Azure Event Hub. Once I am publishing the events to Event Hub I will be able to save the data or take actions in real time based on the incoming data. In this post I will walk through setting up and Event Hub in Azure and publishing events to it using a Smart App that I will write.</p>
+
+<h2 id="creating-an-azure-event-hub">Creating an Azure Event Hub</h2>
+
+<p>To set up your Event Hub in Azure go to the <a href="https://portal.azure.com">Azure Management Portal</a> and click the new button at the bottom. Then click on App Services, Service Bus, Event Hub, Quick Create.</p>
+
+<p><img src="/post_images/2015/09/create_event_hub.png" alt="Create Event Hub" /></p>
+
+<p>This will create an Event Hub under the Service Bus Section in the Portal. You will need the URL to connect to the Event Hub and you will need to set up access rules. You will also need to create an SAS token to access the Event Hub from the SmartThings App. See my previous post for details on how to do this.</p>
+
+<h2 id="creating-a-smartthings-app">Creating a SmartThings App</h2>
+
+<p>Log in to the <a href="https://graph.api.smartthings.com/ide/apps">SmartThings Developer</a> site and click the green New SmartApp button.</p>
+
+<p>Fill in the required fields. In the Settings section create EventHubSecret and EventHubURL settings. Put your SAS token and your Event Hub URL in these.</p>
+
+<p><img src="/post_images/2015/09/smartthings_event_hub_settings.png" alt="SmartThings Event Hub Settings" /></p>
+
+<p>Click Create and you will be taken to the web IDE for the SmartApp.</p>
+
+<h2 id="register-for-events-from-your-devices">Register for events from your devices</h2>
+
+<p>The first section of the app is the definition. These settings are populated by what you entered while creating the app.</p>
+
+<p>The next section is the preferences section. This is where you tell SmartThings which sensors you wish to use in your app and you can specify names for them. I have several sensors I will use so I have set it up for power, light, motion, etc. You can also group related sensors by using a Section.</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">preferences</span> <span class="p">{</span>
+    <span class="nf">section</span><span class="p">(</span><span class="dl">"</span><span class="s2">Power Meter</span><span class="dl">"</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">input</span> <span class="dl">"</span><span class="s2">powers</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">capability.powerMeter</span><span class="dl">"</span><span class="p">,</span> <span class="nx">title</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Power Sensor</span><span class="dl">"</span><span class="p">,</span> <span class="nx">multiple</span><span class="p">:</span> <span class="kc">true</span>
+    <span class="p">}</span>
+    <span class="nf">section</span><span class="p">(</span><span class="dl">"</span><span class="s2">Environment</span><span class="dl">"</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">input</span> <span class="dl">"</span><span class="s2">temperatures</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">capability.temperatureMeasurement</span><span class="dl">"</span><span class="p">,</span> <span class="nx">title</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Temperature Sensors</span><span class="dl">"</span><span class="p">,</span> <span class="nx">multiple</span><span class="p">:</span> <span class="kc">true</span>
+        <span class="nx">input</span> <span class="dl">"</span><span class="s2">lightMeters</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">capability.illuminanceMeasurement</span><span class="dl">"</span><span class="p">,</span> <span class="nx">title</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Light Sensors</span><span class="dl">"</span><span class="p">,</span> <span class="nx">multiple</span><span class="p">:</span> <span class="kc">true</span>
+        <span class="nx">input</span> <span class="dl">"</span><span class="s2">humidityMeters</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">capability.relativeHumidityMeasurement</span><span class="dl">"</span><span class="p">,</span> <span class="nx">title</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Humidity Sensors</span><span class="dl">"</span><span class="p">,</span> <span class="nx">multiple</span><span class="p">:</span> <span class="kc">true</span>
+    <span class="p">}</span>
+    <span class="nf">section</span><span class="p">(</span><span class="dl">"</span><span class="s2">Security Sensors</span><span class="dl">"</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">input</span> <span class="dl">"</span><span class="s2">motions</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">capability.motionSensor</span><span class="dl">"</span><span class="p">,</span> <span class="nx">title</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Motion Sensors</span><span class="dl">"</span><span class="p">,</span> <span class="nx">multiple</span><span class="p">:</span> <span class="kc">true</span>
+        <span class="nx">input</span> <span class="dl">"</span><span class="s2">contacts</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">capability.contactSensor</span><span class="dl">"</span><span class="p">,</span> <span class="nx">title</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Contact Sensors</span><span class="dl">"</span><span class="p">,</span> <span class="nx">multiple</span><span class="p">:</span> <span class="kc">true</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>In the initialize section you can subscribe to events from your devices.</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">def</span> <span class="nf">initialize</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nf">subscribe</span><span class="p">(</span><span class="nx">powers</span><span class="p">,</span> <span class="dl">"</span><span class="s2">power</span><span class="dl">"</span><span class="p">,</span> <span class="nx">powerHandler</span><span class="p">)</span>
+    <span class="nf">subscribe</span><span class="p">(</span><span class="nx">temperatures</span><span class="p">,</span> <span class="dl">"</span><span class="s2">temperature</span><span class="dl">"</span><span class="p">,</span> <span class="nx">temperatureHandler</span><span class="p">)</span>
+    <span class="nf">subscribe</span><span class="p">(</span><span class="nx">motions</span><span class="p">,</span> <span class="dl">"</span><span class="s2">motion</span><span class="dl">"</span><span class="p">,</span> <span class="nx">motionHandler</span><span class="p">)</span>
+    <span class="nf">subscribe</span><span class="p">(</span><span class="nx">contacts</span><span class="p">,</span> <span class="dl">"</span><span class="s2">contact</span><span class="dl">"</span><span class="p">,</span> <span class="nx">contactHandler</span><span class="p">)</span>
+    <span class="nf">subscribe</span><span class="p">(</span><span class="nx">lightMeters</span><span class="p">,</span> <span class="dl">"</span><span class="s2">illuminance</span><span class="dl">"</span><span class="p">,</span> <span class="nx">illuminanceHandler</span><span class="p">)</span>
+    <span class="nf">subscribe</span><span class="p">(</span><span class="nx">humidityMeters</span><span class="p">,</span> <span class="dl">"</span><span class="s2">humidity</span><span class="dl">"</span><span class="p">,</span> <span class="nx">humidityHandler</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="sending-events-to-the-event-hub">Sending events to the Event Hub</h2>
+
+<p>The next thing that we need to do is to create the method that will send data to the Event Hub. Data will be sent to the Event Hub with a POST to the Event Hub URL. SmartThings does this with the httpPost method. This method takes an object that contains the parameters for the post.</p>
+
+<p>The url is the Event Hub URL. The body will be a json object containing the data about the event. You can send any data you want in the body. I am sending the sensor ID, name, type, and the value of the sensor. The content type and the request content type must be defined because the Event Hub returns a different content type than the body content type. Finally, the Authorization header must be set using the SAS token that was created for the Event Hub.</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">def</span> <span class="nf">sendEvent</span><span class="p">(</span><span class="nx">sensorId</span><span class="p">,</span> <span class="nx">sensorName</span><span class="p">,</span> <span class="nx">sensorType</span><span class="p">,</span> <span class="nx">value</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">log</span><span class="p">.</span><span class="nx">debug</span> <span class="dl">"</span><span class="s2">sending ${sensorId} at ${value}</span><span class="dl">"</span>
+    <span class="nx">def</span> <span class="nx">cleanedSensorId</span> <span class="o">=</span> <span class="nx">sensorId</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="dl">"</span><span class="s2"> </span><span class="dl">"</span><span class="p">,</span> <span class="dl">""</span><span class="p">)</span>
+    <span class="nx">def</span> <span class="nx">params</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="nx">uri</span><span class="p">:</span> <span class="dl">"</span><span class="s2">${appSettings.EventHubURL}</span><span class="dl">"</span><span class="p">,</span>
+        <span class="nx">body</span><span class="p">:</span> <span class="dl">"</span><span class="s2">{ sensorId : </span><span class="se">\"</span><span class="s2">${cleanedSensorId}</span><span class="se">\"</span><span class="s2">, sensorName : </span><span class="se">\"</span><span class="s2">${sensorName}</span><span class="se">\"</span><span class="s2">, sensorType : </span><span class="se">\"</span><span class="s2">${sensorType}</span><span class="se">\"</span><span class="s2">, value : </span><span class="se">\"</span><span class="s2">${value}</span><span class="se">\"</span><span class="s2"> }</span><span class="dl">"</span><span class="p">,</span>
+        <span class="nx">contentType</span><span class="p">:</span> <span class="dl">"</span><span class="s2">application/xml; charset=utf-8</span><span class="dl">"</span><span class="p">,</span>
+        <span class="nx">requestContentType</span><span class="p">:</span> <span class="dl">"</span><span class="s2">application/atom+xml;type=entry;charset=utf-8</span><span class="dl">"</span><span class="p">,</span>
+        <span class="nx">headers</span><span class="p">:</span> <span class="p">[</span><span class="dl">"</span><span class="s2">Authorization</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">${appSettings.EventHubSecret}</span><span class="dl">"</span><span class="p">],</span>
+    <span class="p">]</span>
+    
+    <span class="k">try</span> <span class="p">{</span>
+        <span class="nf">httpPost</span><span class="p">(</span><span class="nx">params</span><span class="p">)</span> <span class="p">{</span> <span class="nx">resp</span> <span class="o">-&gt;</span> 
+            <span class="nx">log</span><span class="p">.</span><span class="nx">debug</span> <span class="dl">"</span><span class="s2">response message ${resp}</span><span class="dl">"</span>
+        <span class="p">}</span>
+    <span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">//seems to think 201 is an error</span>
+        <span class="c1">//log.error "something went wrong: $e"</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>The Event Hub returns a 201 Created http status code. This causes an exception to be thrown. The error log is commented out for this reason, but while getting the app running it may be beneficial to uncomment it.</p>
+
+<p>The final step is to create the event handlers that will use this method to send data to the event hub. For events that have a numeric value such as the power meter I am just sending the value directly to the event hub.</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">def</span> <span class="nf">powerHandler</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nf">sendEvent</span><span class="p">(</span><span class="dl">'</span><span class="s1">powerMeter</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span><span class="p">,</span> <span class="dl">'</span><span class="s1">power</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>For the events that contain a text value I am converting it for easier processing later.</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">def</span> <span class="nf">motionHandler</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">value</span> <span class="o">==</span> <span class="dl">'</span><span class="s1">active</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nf">sendEvent</span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">motion</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span><span class="p">,</span> <span class="dl">'</span><span class="s1">motion</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">motion detected</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">value</span> <span class="o">==</span> <span class="dl">'</span><span class="s1">inactive</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nf">sendEvent</span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">motion</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span><span class="p">,</span> <span class="dl">'</span><span class="s1">motion</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">no motion detected</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Here is the code for all of my event handlers:</p>
+
+<div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nx">def</span> <span class="nf">powerHandler</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nf">sendEvent</span><span class="p">(</span><span class="dl">'</span><span class="s1">powerMeter</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span><span class="p">,</span> <span class="dl">'</span><span class="s1">power</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="nx">def</span> <span class="nf">temperatureHandler</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span> <span class="p">{</span>    
+    <span class="nf">sendEvent</span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">temp</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span><span class="p">,</span> <span class="dl">'</span><span class="s1">temperature</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="nx">def</span> <span class="nf">motionHandler</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">value</span> <span class="o">==</span> <span class="dl">'</span><span class="s1">active</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nf">sendEvent</span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">motion</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span><span class="p">,</span> <span class="dl">'</span><span class="s1">motion</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">motion detected</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">value</span> <span class="o">==</span> <span class="dl">'</span><span class="s1">inactive</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nf">sendEvent</span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">motion</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span><span class="p">,</span> <span class="dl">'</span><span class="s1">motion</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">no motion detected</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="nx">def</span> <span class="nf">contactHandler</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">value</span> <span class="o">==</span> <span class="dl">'</span><span class="s1">open</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nf">sendEvent</span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">contact</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span><span class="p">,</span> <span class="dl">'</span><span class="s1">doorOpen</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">open</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">value</span> <span class="o">==</span> <span class="dl">'</span><span class="s1">closed</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nf">sendEvent</span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">contact</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span><span class="p">,</span> <span class="dl">'</span><span class="s1">doorOpen</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">open</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="nx">def</span> <span class="nf">illuminanceHandler</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nf">sendEvent</span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">light</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span><span class="p">,</span> <span class="dl">'</span><span class="s1">lumens</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="nx">def</span> <span class="nf">humidityHandler</span><span class="p">(</span><span class="nx">evt</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nf">sendEvent</span><span class="p">(</span><span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">humidity</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">displayName</span><span class="p">,</span> <span class="dl">'</span><span class="s1">humidity</span><span class="dl">'</span><span class="p">,</span> <span class="nx">evt</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<h2 id="run-the-app-and-verify-it-is-working">Run the app and verify it is working</h2>
+<p>Everything is ready to run now. On the right side of the SmartApp IDE click Set Location and then set your sensors.</p>
+
+<p><img src="/post_images/2015/09/test_sensors.png" alt="Test Sensors" /></p>
+
+<p>The headings and labels created in the SmartApp preferences will be shown. Each section will have virtual devices that can be controlled in the IDE for testing. I am just using my physical devices here.</p>
+
+<p>After setting your sensors click on the Install button below the sensor settings. You should now be able to see log statements as events are sent.</p>
+
+<p>Let the app run for at least 30 minutes and then check the Event Hub’s Dashboard in the Azure Management Portal. You should see a graph indicating that events are coming in and everything is working correctly.</p>
+
+<p><img src="/post_images/2015/09/azure_event_hub_messages.png" alt="Azure Event Hub Messages" /></p>]]></content><author><name></name></author><summary type="html"><![CDATA[In this post I will walk through setting up and Event Hub in Azure and publishing events to it using a Smart App that I will write]]></summary></entry><entry><title type="html">Creating an Azure SAS token in F#</title><link href="https://bencrouse.com/blog/2015/creating-an-azure-sas-token-in-f/" rel="alternate" type="text/html" title="Creating an Azure SAS token in F#" /><published>2015-08-13T00:00:00+00:00</published><updated>2015-08-13T00:00:00+00:00</updated><id>https://bencrouse.com/blog/2015/creating-an-azure-sas-token-in-f</id><content type="html" xml:base="https://bencrouse.com/blog/2015/creating-an-azure-sas-token-in-f/"><![CDATA[<p>I wanted to be able to publish events from an IoT application. I could not figure out how to create the SAS token in the language of the IoT application so I decided to just create one that would last for 90 days.</p>
+
+<p>The first thing you will need is an Event Hub in Azure. Get the URL you are going to use for sending events. It should look like this:</p>
+
+<blockquote>
+  <p>https://youreventhub-ns.servicebus.windows.net/youreventhub/publishers/test01/messages</p>
+</blockquote>
+
+<p>You will need to create a shared access policy that will allow you to send events to the Event Hub.</p>
+
+<p><img src="/post_images/2015/08/shared_access_policies.png" alt="shared access policies" /></p>
+
+<p>Then get the key from the policy.</p>
+
+<p><img src="/post_images/2015/08/shared_access_key_generator.png" alt="shared access key generator" /></p>
+
+<p>The SAS token has several parts. This is the string we will use to generate it: <strong>SharedAccessSignature sig=%s&amp;se=%i&amp;skn=%s&amp;sr=%s</strong>. The first part is the signature, which we will create later. Then the expiration time, the key name used to generate the signature, and the URI encoded Event Hub URL.</p>
+
+<p>The signature is generated by encrypting the combination of the URL and the expiration. It is encrypted using HMACSHA256. To do this we will create a function that takes the string to encrypt and the key and returns the encrypted string.</p>
+
+<pre><code class="language-f#">let encryptString (key : string) (message : string) =
+ let keyBytes = System.Text.Encoding.UTF8.GetBytes(key)
+ let messageBytes = System.Text.Encoding.UTF8.GetBytes(message)
+ use hmac = new System.Security.Cryptography.HMACSHA256(keyBytes)
+ let hashmessage = hmac.ComputeHash(messageBytes)
+ Convert.ToBase64String(hashmessage)
+</code></pre>
+
+<p>The expiration is in Unix time so we need to convert the DateTime. I am creating a token that lasts for 90 days, but this could be changed to accept a parameter.</p>
+
+<pre><code class="language-f#"> let toUnixTime (t : DateTime) =
+    t.Subtract(new DateTime(1970, 1, 1)).TotalSeconds
+ let expiry = DateTime.UtcNow.AddDays(90.0) |&gt; toUnixTime |&gt; Convert.ToInt32
+</code></pre>
+
+<p>We now have enough to create the method that creates the token.</p>
+
+<pre><code class="language-f#"> let createToken (uri : string) keyName key =
+ let toUnixTime (t : DateTime) =
+    t.Subtract(new DateTime(1970, 1, 1)).TotalSeconds
+ let expiry = DateTime.UtcNow.AddDays(90.0) |&gt; toUnixTime |&gt; Convert.ToInt32
+ let encUri = System.Web.HttpUtility.UrlEncode(uri)
+ let stringToSign = encUri + "\n" + expiry.ToString()
+ let signature = encryptString key stringToSign |&gt; System.Web.HttpUtility.UrlEncode
+ sprintf "SharedAccessSignature sig=%s&amp;se=%i&amp;skn=%s&amp;sr=%s" signature expiry keyName encUri
+</code></pre>
+
+<p>Call this method and pass in your Event Hub URI, key name, and key. This will provide you with an SAS token that will expire after 90 days.</p>]]></content><author><name></name></author><summary type="html"><![CDATA[A walkthrough of creating an Azure SAS token programmatically in F#]]></summary></entry></feed>
