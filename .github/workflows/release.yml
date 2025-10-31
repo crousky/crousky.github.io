@@ -110,14 +110,46 @@ jobs:
             mv site_artifact site || true
           fi
 
-      - name: Deploy to gh-pages branch
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site
-          publish_branch: gh-pages
-          # optional: set commit author
-          commit_message: "ci: publish site from workflow ${{ github.run_id }}"
+      - name: Deploy to master (publish site to bencrouse.com)
+        # We clone with a token and rsync the built site into the repository root
+        # while preserving `.github` and other metadata. This works for user/org
+        # sites like `crousky.github.io` which serve Pages from the default branch.
+        env:
+          REPO: ${{ github.repository }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CNAME: bencrouse.com
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          echo "Cloning ${REPO} (master)"
+          git clone --depth=1 https://x-access-token:${TOKEN}@github.com/${REPO}.git deploy_repo
+
+          # Clean deploy_repo but preserve .github and .git
+          cd deploy_repo
+          find . -maxdepth 1 ! -name '.' ! -name '.github' ! -name '.git' -exec rm -rf {} + || true
+          cd -
+
+          # copy built site into repo root
+          rsync -av --delete site/ deploy_repo/
+
+          # ensure CNAME present so Pages keeps the custom domain
+          echo "${CNAME}" > deploy_repo/CNAME
+
+          # add .nojekyll to prevent GitHub Pages from rebuilding the site
+          # (the site is already built; Pages should serve it as static files)
+          touch deploy_repo/.nojekyll
+
+          # commit and push
+          cd deploy_repo
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to publish"
+          else
+            git commit -m "ci: publish site from workflow ${GITHUB_RUN_ID}"
+            git push https://x-access-token:${TOKEN}@github.com/${REPO}.git HEAD:master
+          fi
 
 # Notes:
 # - This workflow builds the site with Jekyll (using the repository Gemfile). It creates a
