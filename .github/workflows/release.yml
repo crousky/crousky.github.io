@@ -1,0 +1,84 @@
+name: Build and release site
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    name: Build site and create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby (for Jekyll)
+        uses: ruby/setup-ruby@v1
+        with:
+          # Pick a reasonably recent Ruby version; adjust if your project requires a specific Ruby.
+          ruby-version: '3.1'
+          cache: 'bundler'
+
+      - name: Install Bundler
+        run: gem install bundler
+
+      - name: Bundle install
+        run: |
+          bundle config set --local path 'vendor/bundle'
+          bundle install --jobs 4 --retry 3
+
+      - name: Build site with Jekyll
+        run: bundle exec jekyll build --destination _site
+
+      - name: Archive generated site
+        run: |
+          if [ -d "_site" ]; then
+            cd _site
+            zip -r ../site.zip .
+            cd -
+          else
+            echo "_site directory not found — build may have failed"
+            exit 1
+          fi
+
+      - name: Create release tag variable
+        id: create_tag
+        run: |
+          # Create a unique tag using UTC datetime and short SHA
+          SHORT_SHA=${GITHUB_SHA:0:7}
+          TAG="v$(date -u +%Y%m%d%H%M%S)-${SHORT_SHA}"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
+          echo "RELEASE_NAME=Site build ${TAG}" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.TAG }}
+          release_name: ${{ env.RELEASE_NAME }}
+          body: "Automatically generated site build from commit ${{ github.sha }}"
+          draft: false
+          prerelease: false
+
+      - name: Upload site.zip to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./site.zip
+          asset_name: site.zip
+          asset_content_type: application/zip
+
+# Notes:
+# - This workflow builds the site with Jekyll (using the repository Gemfile). It creates a
+#   new release on every run (a timestamped tag) and attaches `site.zip` containing the
+#   generated `_site` folder.
+# - The built site can be downloaded from the Release page.
+# - The workflow uses the built-in `GITHUB_TOKEN` so no additional secrets are required to
+#   create releases. If you prefer to use a different token with wider permissions, add
+#   it as a repository secret and replace `secrets.GITHUB_TOKEN` above.
